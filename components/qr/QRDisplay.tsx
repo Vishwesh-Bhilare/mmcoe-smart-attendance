@@ -1,59 +1,34 @@
-// components/qr/QRDisplay.tsx
-
 "use client";
 
 import { useEffect, useState } from "react";
-import QRCode from "react-qr-code";
+import { QRCodeCanvas } from "qrcode.react";
 
-interface QRDisplayProps {
-  sessionId: string;
-}
-
-export default function QRDisplay({ sessionId }: QRDisplayProps) {
-  const [token, setToken] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(true);
-
-  const fetchToken = async () => {
-    try {
-      const res = await fetch(`/api/sessions/active?sessionId=${sessionId}`);
-      const data = await res.json();
-
-      if (res.ok) {
-        setToken(data.token);
-      }
-    } catch (error) {
-      console.error("Failed to fetch QR token");
-    } finally {
-      setLoading(false);
-    }
-  };
+export default function QRDisplay({ token }: { token: string }) {
+  const [attendanceUrl, setAttendanceUrl] = useState("");
 
   useEffect(() => {
-    fetchToken();
-    const interval = setInterval(fetchToken, 30000);
-    return () => clearInterval(interval);
-  }, [sessionId]);
+    if (typeof window !== "undefined") {
+      const url = `${window.location.origin}/dashboard/student/scan?token=${token}`;
+      setAttendanceUrl(url);
+    }
+  }, [token]);
 
-  if (loading) {
-    return (
-      <div className="bg-white p-6 rounded-xl shadow text-center">
-        <p className="text-sm text-gray-500">Generating QR...</p>
-      </div>
-    );
-  }
+  if (!attendanceUrl) return null;
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow flex flex-col items-center">
-      {token ? (
-        <>
-          <QRCode value={token} size={250} />
-          <p className="text-xs text-gray-500 mt-4">
-            QR refreshes every 30 seconds
-          </p>
-        </>
-      ) : (
-        <p className="text-sm text-red-500">Session not active.</p>
-      )}
+    <div className="flex flex-col items-center space-y-6">
+      <QRCodeCanvas
+        value={attendanceUrl}
+        size={300}
+        bgColor="#ffffff"
+        fgColor="#000000"
+        level="H"
+      />
+
+      <p className="text-sm text-gray-600">
+        Students scan this QR to mark attendance.
+      </p>
     </div>
   );
 }
+

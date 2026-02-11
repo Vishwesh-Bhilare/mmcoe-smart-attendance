@@ -2,12 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function ScanPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tokenFromUrl = searchParams.get("token");
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
+  const [message, setMessage] = useState("Scanning...");
+  const [hasScanned, setHasScanned] = useState(false);
 
   useEffect(() => {
     const scanner = new Html5Qrcode("qr-reader");
@@ -19,44 +23,70 @@ export default function ScanPage() {
           { facingMode: "environment" },
           { fps: 10, qrbox: 250 },
           async (decodedText) => {
-            if (!scannerRef.current) return;
+            if (hasScanned) return;
+            setHasScanned(true);
 
-            if (isRunning) {
-              await scannerRef.current.stop();
-              setIsRunning(false);
+            try {
+              await scanner.stop();
+              await scanner.clear();
+            } catch {}
+
+            const token =
+              tokenFromUrl ||
+              new URL(decodedText).searchParams.get("token");
+
+            if (!token) {
+              setMessage("Invalid QR Code");
+              return;
             }
 
-            console.log("QR detected:", decodedText);
+            const res = await fetch("/api/attendance/mark", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token }),
+            });
 
-            router.push(`/dashboard/student?qr=${decodedText}`);
+            const data = await res.json();
+
+            if (!res.ok) {
+              setMessage(data.error || "Failed to mark attendance");
+              return;
+            }
+
+            setMessage("✅ Attendance Marked");
+
+            setTimeout(() => {
+              router.replace("/dashboard/student");
+            }, 1500);
           },
           () => {}
         );
-
-        setIsRunning(true);
-      } catch (err) {
-        console.error("Scanner start error:", err);
+      } catch {
+        setMessage("Camera permission required.");
       }
     };
 
     startScanner();
 
     return () => {
-      if (scannerRef.current && isRunning) {
-        scannerRef.current
-          .stop()
-          .catch(() => {});
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
       }
     };
-  }, [router, isRunning]);
+  }, [router, tokenFromUrl, hasScanned]);
 
   return (
-    <div className="p-6">
+    <div className="p-6 text-center">
       <h1 className="text-2xl font-bold mb-6">Scan QR Code</h1>
-      <div
-        id="qr-reader"
-        className="w-full max-w-md mx-auto border rounded-lg"
-      />
+
+      {!hasScanned && (
+        <div
+          id="qr-reader"
+          className="w-full max-w-md mx-auto border rounded-lg"
+        />
+      )}
+
+      <p className="mt-6 text-lg">{message}</p>
     </div>
   );
 }

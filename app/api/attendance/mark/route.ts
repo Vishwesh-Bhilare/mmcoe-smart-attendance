@@ -1,133 +1,60 @@
 // app/api/attendance/mark/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { verifyHMACToken } from "@/lib/hmac";
-import { calculateDistanceMeters } from "@/lib/geo";
-import { attendanceRateLimit } from "@/lib/rateLimit";
-import { validateAttendanceInput } from "@/lib/validators";
-import crypto from "crypto";
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
-export async function POST(req: NextRequest) {
-  const supabase = createServerSupabaseClient();
+export async function POST(req: Request) {
+  const supabase = await createClient();
 
-  const ip =
-    req.headers.get("x-forwarded-for") ||
-    req.headers.get("x-real-ip") ||
-    "unknown";
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const rate = attendanceRateLimit(ip);
-
-  if (!rate.success) {
+  if (!user) {
     return NextResponse.json(
-      { error: "Too many requests" },
-      { status: 429 }
+      { error: "Unauthorized" },
+      { status: 401 }
     );
   }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { token } = await req.json();
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", session.user.id)
-    .single();
-
-  if (!profile || profile.role !== "student") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const body = await req.json();
-  const validation = validateAttendanceInput(body);
-
-  if (!validation.valid) {
+  if (!token) {
     return NextResponse.json(
-      { error: validation.message },
+      { error: "Invalid token" },
       { status: 400 }
     );
   }
 
-  const { qrToken, latitude, longitude } = body;
-
-  const { data: activeSession } = await supabase
-    .from("class_sessions")
+  // Find active session
+  const { data: session } = await supabase
+    .from("sessions")
     .select("*")
+    .eq("token", token)
     .eq("is_active", true)
     .single();
 
-  if (!activeSession) {
+  if (!session) {
     return NextResponse.json(
-      { error: "No active session" },
-      { status: 404 }
+      { error: "Session not active" },
+      { status: 400 }
     );
   }
 
-  const validToken = verifyHMACToken(
-    qrToken,
-    activeSession.secret_seed,
-    activeSession.id
-  );
-
-  if (!validToken) {
-    return NextResponse.json(
-      { error: "Invalid QR token" },
-      { status: 403 }
-    );
-  }
-
-  const distance = calculateDistanceMeters(
-    latitude,
-    longitude,
-    activeSession.classroom_lat,
-    activeSession.classroom_lng
-  );
-
-  if (distance > activeSession.radius_meters) {
-    return NextResponse.json(
-      { error: "Outside classroom radius" },
-      { status: 403 }
-    );
-  }
-
-  const deviceHash = crypto
-    .createHash("sha256")
-    .update(session.user.id + ip)
-    .digest("hex");
-
+  // Insert attendance (unique constraint prevents duplicate)
   const { error } = await supabase
-    .from("attendance_records")
+    .from("attendance")
     .insert({
-      session_id: activeSession.id,
-      student_id: session.user.id,
-      submission_lat: latitude,
-      submission_lng: longitude,
-      distance_meters: distance,
-      ip_address: ip,
-      device_hash: deviceHash,
+      session_id: session.id,
+      student_id: user.id,
     });
 
   if (error) {
     return NextResponse.json(
-      { error: "Duplicate or insertion failed" },
+      { error: "Already marked attendance" },
       { status: 400 }
     );
   }
-
-  await supabase.from("audit_logs").insert({
-    actor_id: session.user.id,
-    action: "ATTENDANCE_MARKED",
-    metadata_json: {
-      session_id: activeSession.id,
-      distance,
-      ip,
-    },
-  });
 
   return NextResponse.json({ success: true });
 }

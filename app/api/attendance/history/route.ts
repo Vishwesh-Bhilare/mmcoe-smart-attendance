@@ -1,25 +1,40 @@
 // app/api/attendance/history/route.ts
 
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createClient();
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
   }
 
-  const { data: records } = await supabase
-    .from("attendance_records")
+  // Get faculty session
+  const { data: session } = await supabase
+    .from("sessions")
     .select("*")
-    .eq("student_id", session.user.id)
-    .order("server_timestamp", { ascending: false });
+    .eq("faculty_id", user.id)
+    .eq("is_active", true)
+    .single();
 
-  return NextResponse.json(records || []);
+  if (!session) {
+    return NextResponse.json({ attendance: [] });
+  }
+
+  const { data: attendance } = await supabase
+    .from("attendance")
+    .select("student_id, scanned_at")
+    .eq("session_id", session.id)
+    .order("scanned_at", { ascending: false });
+
+  return NextResponse.json({ attendance });
 }
 

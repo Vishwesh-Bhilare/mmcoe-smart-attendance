@@ -1,58 +1,46 @@
 // app/api/sessions/create/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import crypto from "crypto";
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { randomUUID } from "crypto";
 
-export async function POST(req: NextRequest) {
-  const supabase = createServerSupabaseClient();
+export async function POST() {
+  const supabase = await createClient();
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", session.user.id)
-    .single();
+  // Deactivate previous sessions
+  await supabase
+    .from("sessions")
+    .update({ is_active: false })
+    .eq("faculty_id", user.id);
 
-  if (!profile || profile.role !== "faculty") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const body = await req.json();
-  const { courseId, lat, lng } = body;
-
-  if (!courseId || !lat || !lng) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
-  }
-
-  const secretSeed = crypto.randomBytes(32).toString("hex");
+  const token = randomUUID();
 
   const { data, error } = await supabase
-    .from("class_sessions")
-    .insert({
-      course_id: courseId,
-      faculty_id: session.user.id,
-      classroom_lat: lat,
-      classroom_lng: lng,
-      radius_meters: 50,
-      secret_seed: secretSeed,
-      start_time: new Date().toISOString(),
-      is_active: true,
-    })
+    .from("sessions")
+    .insert([
+      {
+        faculty_id: user.id,
+        token,
+        is_active: true,
+      },
+    ])
     .select()
     .single();
 
   if (error) {
-    return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ sessionId: data.id });
+  return NextResponse.redirect(
+    new URL("/dashboard/faculty/session/start", process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000")
+  );
 }
 
