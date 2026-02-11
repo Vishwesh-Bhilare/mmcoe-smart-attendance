@@ -1,0 +1,31 @@
+<!-- public/logo.svg -->
+
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1E40AF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Circle -->
+  <circle cx="100" cy="100" r="95" fill="url(#grad)" />
+
+  <!-- QR Styled Grid -->
+  <rect x="55" y="55" width="25" height="25" fill="white"/>
+  <rect x="85" y="55" width="15" height="15" fill="white"/>
+  <rect x="110" y="55" width="20" height="20" fill="white"/>
+
+  <rect x="55" y="85" width="15" height="15" fill="white"/>
+  <rect x="80" y="85" width="25" height="25" fill="white"/>
+  <rect x="115" y="90" width="15" height="15" fill="white"/>
+
+  <rect x="55" y="115" width="20" height="20" fill="white"/>
+  <rect x="90" y="120" width="15" height="15" fill="white"/>
+  <rect x="115" y="115" width="25" height="25" fill="white"/>
+
+  <!-- Text -->
+  <text x="100" y="175" text-anchor="middle" fill="white" font-size="18" font-family="Arial, sans-serif" font-weight="bold">
+    MMCOE
+  </text>
+</svg>
