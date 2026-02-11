@@ -1,78 +1,62 @@
-// app/dashboard/student/scan/page.tsx
-
 "use client";
 
-import { useState } from "react";
-import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 import { useRouter } from "next/navigation";
-
-const QrReader = dynamic(() => import("react-qr-reader"), {
-  ssr: false,
-});
 
 export default function ScanPage() {
   const router = useRouter();
-  const [scanned, setScanned] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
 
-  const handleScan = async (data: any) => {
-    if (!data || scanned) return;
+  useEffect(() => {
+    const scanner = new Html5Qrcode("qr-reader");
+    scannerRef.current = scanner;
 
-    setScanned(true);
+    const startScanner = async () => {
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 250 },
+          async (decodedText) => {
+            if (!scannerRef.current) return;
 
-    try {
-      const position = await new Promise<GeolocationPosition>(
-        (resolve, reject) =>
-          navigator.geolocation.getCurrentPosition(resolve, reject)
-      );
+            if (isRunning) {
+              await scannerRef.current.stop();
+              setIsRunning(false);
+            }
 
-      const res = await fetch("/api/attendance/mark", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          qrToken: data?.text,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        }),
-      });
+            console.log("QR detected:", decodedText);
 
-      const result = await res.json();
+            router.push(`/dashboard/student?qr=${decodedText}`);
+          },
+          () => {}
+        );
 
-      if (!res.ok) {
-        setError(result.error || "Attendance failed.");
-        setScanned(false);
-        return;
+        setIsRunning(true);
+      } catch (err) {
+        console.error("Scanner start error:", err);
       }
+    };
 
-      alert("Attendance marked successfully!");
-      router.push("/dashboard/student");
-    } catch (err) {
-      setError("Location permission required.");
-      setScanned(false);
-    }
-  };
+    startScanner();
+
+    return () => {
+      if (scannerRef.current && isRunning) {
+        scannerRef.current
+          .stop()
+          .catch(() => {});
+      }
+    };
+  }, [router, isRunning]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6">
-      <h1 className="text-xl font-bold mb-6">Scan Attendance QR</h1>
-
-      <div className="w-full max-w-md bg-white p-4 rounded-xl shadow">
-        <QrReader
-          constraints={{ facingMode: "environment" }}
-          onResult={(result: any) => {
-            if (result) {
-              handleScan(result);
-            }
-          }}
-          containerStyle={{ width: "100%" }}
-        />
-      </div>
-
-      {error && (
-        <div className="mt-4 text-red-600 text-sm bg-red-50 p-3 rounded">
-          {error}
-        </div>
-      )}
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">Scan QR Code</h1>
+      <div
+        id="qr-reader"
+        className="w-full max-w-md mx-auto border rounded-lg"
+      />
     </div>
   );
 }

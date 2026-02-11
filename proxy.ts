@@ -1,9 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/ssr";
 
 export async function proxy(req: NextRequest) {
   const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies.get(name)?.value;
+        },
+      },
+    }
+  );
 
   const {
     data: { session },
@@ -16,32 +27,6 @@ export async function proxy(req: NextRequest) {
     if (!session) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", session.user.id)
-      .single();
-
-    if (!profile) {
-      return NextResponse.redirect(new URL("/login", req.url));
-    }
-
-    // Student protection
-    if (
-      pathname.startsWith("/dashboard/student") &&
-      profile.role !== "student"
-    ) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-
-    // Faculty protection
-    if (
-      pathname.startsWith("/dashboard/faculty") &&
-      profile.role !== "faculty"
-    ) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
   }
 
   return res;
@@ -50,3 +35,4 @@ export async function proxy(req: NextRequest) {
 export const config = {
   matcher: ["/dashboard/:path*"],
 };
+

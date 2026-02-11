@@ -2,10 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createBrowserClient } from "@supabase/ssr";
 
 export default function LoginPage() {
-  const supabase = createClientComponentClient();
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -36,7 +40,7 @@ export default function LoginPage() {
         return;
       }
 
-      alert("Signup successful. Check your email for confirmation.");
+      alert("Signup successful. Check your email.");
     } else {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -78,9 +82,7 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        {error && (
-          <p className="text-red-500 text-sm mb-4">{error}</p>
-        )}
+        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
         <button
           onClick={handleAuth}
