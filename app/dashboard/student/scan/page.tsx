@@ -10,6 +10,8 @@ export default function ScanPage() {
   const tokenFromUrl = searchParams.get("token");
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const isScannerRunning = useRef(false);
+
   const [message, setMessage] = useState("Scanning...");
   const [hasScanned, setHasScanned] = useState(false);
 
@@ -27,8 +29,11 @@ export default function ScanPage() {
             setHasScanned(true);
 
             try {
-              await scanner.stop();
-              await scanner.clear();
+              if (isScannerRunning.current) {
+                await scanner.stop();
+                await scanner.clear();
+                isScannerRunning.current = false;
+              }
             } catch {}
 
             const token =
@@ -61,6 +66,8 @@ export default function ScanPage() {
           },
           () => {}
         );
+
+        isScannerRunning.current = true;
       } catch {
         setMessage("Camera permission required.");
       }
@@ -69,8 +76,9 @@ export default function ScanPage() {
     startScanner();
 
     return () => {
-      if (scannerRef.current) {
+      if (scannerRef.current && isScannerRunning.current) {
         scannerRef.current.stop().catch(() => {});
+        isScannerRunning.current = false;
       }
     };
   }, [router, tokenFromUrl, hasScanned]);
@@ -79,12 +87,13 @@ export default function ScanPage() {
     <div className="p-6 text-center">
       <h1 className="text-2xl font-bold mb-6">Scan QR Code</h1>
 
-      {!hasScanned && (
-        <div
-          id="qr-reader"
-          className="w-full max-w-md mx-auto border rounded-lg"
-        />
-      )}
+      {/* IMPORTANT: Always keep this div mounted */}
+      <div
+        id="qr-reader"
+        className={`w-full max-w-md mx-auto border rounded-lg ${
+          hasScanned ? "opacity-0" : ""
+        }`}
+      />
 
       <p className="mt-6 text-lg">{message}</p>
     </div>
