@@ -12,35 +12,39 @@ export async function POST() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
   }
 
-  // Deactivate previous sessions
+  // 🔴 Step 1: Close previous active sessions
   await supabase
     .from("sessions")
     .update({ is_active: false })
-    .eq("faculty_id", user.id);
+    .eq("faculty_id", user.id)
+    .eq("is_active", true);
 
-  const token = randomUUID();
+  // 🟢 Step 2: Create new session with NEW token
+  const newToken = randomUUID();
 
   const { data, error } = await supabase
     .from("sessions")
-    .insert([
-      {
-        faculty_id: user.id,
-        token,
-        is_active: true,
-      },
-    ])
+    .insert({
+      faculty_id: user.id,
+      token: newToken,
+      is_active: true,
+    })
     .select()
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message },
+      { status: 400 }
+    );
   }
 
-  return NextResponse.redirect(
-    new URL("/dashboard/faculty/session/start", process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000")
-  );
+  return NextResponse.json(data);
 }
 

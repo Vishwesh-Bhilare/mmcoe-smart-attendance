@@ -1,11 +1,10 @@
 // app/dashboard/faculty/courses/page.tsx
 
 import { redirect } from "next/navigation";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export default async function CoursesPage() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = createServerSupabaseClient();
 
   const {
     data: { session },
@@ -13,10 +12,15 @@ export default async function CoursesPage() {
 
   if (!session) redirect("/login");
 
-  const { data: courses } = await supabase
+  const { data: courses, error } = await supabase
     .from("courses")
     .select("*")
     .eq("faculty_id", session.user.id);
+
+  if (error) {
+    console.error(error);
+    return <div className="p-6">Failed to load courses.</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">

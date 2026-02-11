@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@supabase/ssr": "^0.4.1",
-    "@supabase/supabase-js": "^2.43.0",
+    "@supabase/supabase-js": "^2.95.3",
     "clsx": "^2.1.0",
     "html5-qrcode": "^2.3.8",
     "next": "^16.1.6",
