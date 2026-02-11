@@ -1,78 +1,87 @@
 // app/dashboard/faculty/attendance/page.tsx
 
 import { redirect } from "next/navigation";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function FacultyAttendancePage() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
+  // Get authenticated user (secure)
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) redirect("/login");
+  if (!user) {
+    redirect("/login");
+  }
 
+  // Ensure faculty access
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "faculty") {
+    redirect("/dashboard");
+  }
+
+  // Fetch all sessions for this faculty
   const { data: sessions } = await supabase
-    .from("class_sessions")
-    .select(
-      `
-      id,
-      start_time,
-      courses (
-        course_name,
-        course_code
-      ),
-      attendance_records (
-        id
-      )
-    `
-    )
-    .eq("faculty_id", session.user.id)
-    .order("start_time", { ascending: false });
+    .from("sessions")
+    .select("*")
+    .eq("faculty_id", user.id)
+    .order("created_at", { ascending: false });
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Session Attendance</h1>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">
+          Attendance Sessions
+        </h1>
 
-        <div className="bg-white shadow rounded-xl overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-100 text-left">
-              <tr>
-                <th className="p-3">Course</th>
-                <th className="p-3">Date</th>
-                <th className="p-3">Total Attendance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions?.map((sessionItem: any) => (
-                <tr key={sessionItem.id} className="border-t">
-                  <td className="p-3">
-                    {sessionItem.courses?.course_name} (
-                    {sessionItem.courses?.course_code})
-                  </td>
-                  <td className="p-3">
-                    {new Date(
-                      sessionItem.start_time
-                    ).toLocaleDateString()}
-                  </td>
-                  <td className="p-3">
-                    {sessionItem.attendance_records?.length || 0}
-                  </td>
-                </tr>
-              ))}
+        {sessions && sessions.length > 0 ? (
+          <div className="space-y-6">
+            {sessions.map((session: any) => (
+              <div
+                key={session.id}
+                className="bg-white p-6 rounded-xl shadow"
+              >
+                <p>
+                  <strong>Created:</strong>{" "}
+                  {new Date(session.created_at).toLocaleString(
+                    "en-IN",
+                    {
+                      hour12: true,
+                    }
+                  )}
+                </p>
 
-              {!sessions?.length && (
-                <tr>
-                  <td colSpan={3} className="p-6 text-center text-gray-500">
-                    No session records found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                <p>
+                  <strong>Status:</strong>{" "}
+                  {session.is_active ? (
+                    <span className="text-green-600 font-semibold">
+                      Active
+                    </span>
+                  ) : (
+                    <span className="text-gray-500">
+                      Closed
+                    </span>
+                  )}
+                </p>
+
+                <p className="break-all">
+                  <strong>Token:</strong>{" "}
+                  {session.token}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white p-6 rounded-xl shadow">
+            <p>No sessions found.</p>
+          </div>
+        )}
       </div>
     </div>
   );
