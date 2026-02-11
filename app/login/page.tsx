@@ -1,5 +1,3 @@
-// app/login/page.tsx
-
 "use client";
 
 import { useState } from "react";
@@ -12,99 +10,94 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const validateStudentEmail = (email: string) => {
-    return email.endsWith("@mmcoe.edu.in");
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAuth = async () => {
     setError(null);
     setLoading(true);
 
-    if (!email || !password) {
-      setError("All fields are required.");
-      setLoading(false);
-      return;
-    }
-
-    // If student email, enforce domain
-    if (!validateStudentEmail(email)) {
+    if (isSignup && !email.endsWith("@mmcoe.edu.in")) {
       setError("Student email must end with @mmcoe.edu.in");
       setLoading(false);
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    if (isSignup) {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
-    setLoading(false);
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
 
-    if (error) {
-      setError(error.message);
-      return;
+      alert("Signup successful. Check your email for confirmation.");
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      router.push("/dashboard");
     }
 
-    router.push("/dashboard");
+    setLoading(false);
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-6 bg-gray-50">
-      <div className="w-full max-w-md bg-white shadow-lg rounded-xl p-8">
-        <h2 className="text-2xl font-semibold mb-6 text-center">
-          Login to Portal
-        </h2>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+        <h1 className="text-2xl font-bold mb-6 text-center">
+          {isSignup ? "Sign Up" : "Login"}
+        </h1>
+
+        <input
+          type="email"
+          placeholder="Email"
+          className="w-full mb-4 p-3 border rounded"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          className="w-full mb-4 p-3 border rounded"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
         {error && (
-          <div className="mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
-            {error}
-          </div>
+          <p className="text-red-500 text-sm mb-4">{error}</p>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Email Address
-            </label>
-            <input
-              type="email"
-              placeholder="example@mmcoe.edu.in"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
+        <button
+          onClick={handleAuth}
+          disabled={loading}
+          className="w-full bg-blue-600 text-white py-3 rounded hover:bg-blue-700 transition"
+        >
+          {loading ? "Please wait..." : isSignup ? "Sign Up" : "Login"}
+        </button>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              placeholder="Enter password"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-
+        <p className="text-center mt-4 text-sm">
+          {isSignup ? "Already have an account?" : "Don't have an account?"}
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50"
+            onClick={() => setIsSignup(!isSignup)}
+            className="text-blue-600 ml-2"
           >
-            {loading ? "Logging in..." : "Login"}
+            {isSignup ? "Login" : "Sign Up"}
           </button>
-        </form>
-
-        <p className="text-xs text-gray-500 mt-6 text-center">
-          Only MMCOE institutional accounts are allowed.
         </p>
       </div>
     </div>
